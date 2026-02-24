@@ -24,14 +24,14 @@ async function _fetch<T>(url: string, options?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-// ─── Upload ───────────────────────────────────────────────────────────────────
+// Upload
 export async function uploadFile(file: File): Promise<UploadResponse> {
   const form = new FormData();
   form.append("file", file);
   return _fetch<UploadResponse>(`${BASE}/upload`, { method: "POST", body: form });
 }
 
-// ─── Jobs ─────────────────────────────────────────────────────────────────────
+// Jobs
 export const getJobs = () =>
   _fetch<JobListItem[]>(`${BASE}/jobs`);
 

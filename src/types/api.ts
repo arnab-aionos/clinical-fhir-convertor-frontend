@@ -1,4 +1,4 @@
-// ─── Enums ────────────────────────────────────────────────────────────────────
+// Enums
 export type JobStatus =
   | "pending"
   | "processing"
@@ -8,14 +8,14 @@ export type JobStatus =
 
 export type DocumentType = "discharge_summary" | "diagnostic_report" | "unknown";
 
-// ─── Confidence ───────────────────────────────────────────────────────────────
+// Confidence
 export interface ConfidenceDetail {
   score: number;           // 0.0 – 1.0
   label: "high" | "medium" | "low";
   color: "green" | "amber" | "red";
 }
 
-// ─── Job responses ────────────────────────────────────────────────────────────
+// Job responses
 export interface JobResponse {
   job_id: string;
   status: JobStatus;
@@ -56,8 +56,8 @@ export interface JobValidationResponse {
   resource_count: number;
 }
 
-// ─── Upload response (same as JobResponse, returned immediately) ──────────────
+// Upload response (same shape as JobResponse, returned immediately as 202)
 export type UploadResponse = JobResponse;
 
-// ─── Job list item (for history page) ────────────────────────────────────────
+// Job list item (for history page)
 export type JobListItem = JobResponse;

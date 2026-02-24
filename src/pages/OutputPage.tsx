@@ -5,7 +5,7 @@ import type {
   JobResponse, JobExtractedResponse, JobFhirResponse, JobValidationResponse,
 } from "../types/api";
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// Helpers
 
 function toArr(x: unknown): unknown[] {
   return Array.isArray(x) ? (x as unknown[]) : [];
@@ -129,7 +129,7 @@ function RenderVitals({ vitals }: { vitals: Record<string, unknown> }) {
   );
 }
 
-// ─── Main page ────────────────────────────────────────────────────────────────
+// Main page
 
 export default function OutputPage() {
   const { jobId }               = useParams<{ jobId: string }>();

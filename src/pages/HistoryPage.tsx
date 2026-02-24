@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { getJobs, deleteJob } from "../api/client";
 import type { JobListItem, JobStatus } from "../types/api";
 
-// ─── Status badge ─────────────────────────────────────────────────────────────
+// Status badge
 
 const STATUS_BADGE: Record<JobStatus, { label: string; cls: string }> = {
   pending:               { label: "Queued",       cls: "bg-slate-500/20 text-slate-400 border-slate-500/30" },
@@ -22,7 +22,7 @@ function StatusBadge({ status }: { status: JobStatus }) {
   );
 }
 
-// ─── Action buttons based on status ──────────────────────────────────────────
+// Action buttons based on status
 
 function ActionButtons({ job, onDelete }: { job: JobListItem; onDelete: (id: string) => void }) {
   const id = job.job_id;
@@ -68,7 +68,7 @@ function ActionButtons({ job, onDelete }: { job: JobListItem; onDelete: (id: str
   );
 }
 
-// ─── Sort controls ─────────────────────────────────────────────────────────────
+// Sort controls
 
 type SortKey = "created_at" | "status" | "filename";
 type SortDir = "asc" | "desc";
@@ -89,7 +89,7 @@ function sortJobs(jobs: JobListItem[], key: SortKey, dir: SortDir): JobListItem[
   });
 }
 
-// ─── Pagination helper ────────────────────────────────────────────────────────
+// Pagination helper
 
 const ITEMS_PER_PAGE = 20;
 
@@ -103,7 +103,7 @@ function getPageNumbers(current: number, total: number): (number | "…")[] {
   return pages;
 }
 
-// ─── Main page ────────────────────────────────────────────────────────────────
+// Main page
 
 export default function HistoryPage() {
   const [jobs, setJobs]     = useState<JobListItem[]>([]);
