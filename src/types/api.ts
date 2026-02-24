@@ -1,5 +1,11 @@
 // ─── Enums ────────────────────────────────────────────────────────────────────
-export type JobStatus = "pending" | "processing" | "completed" | "failed";
+export type JobStatus =
+  | "pending"
+  | "processing"
+  | "awaiting_verification"
+  | "completed"
+  | "failed";
+
 export type DocumentType = "discharge_summary" | "diagnostic_report" | "unknown";
 
 // ─── Confidence ───────────────────────────────────────────────────────────────
@@ -18,6 +24,7 @@ export interface JobResponse {
   error_message: string | null;
   created_at: string;
   updated_at: string;
+  excel_export_path: string | null;
 }
 
 export interface JobTextResponse {
@@ -51,3 +58,6 @@ export interface JobValidationResponse {
 
 // ─── Upload response (same as JobResponse, returned immediately) ──────────────
 export type UploadResponse = JobResponse;
+
+// ─── Job list item (for history page) ────────────────────────────────────────
+export type JobListItem = JobResponse;

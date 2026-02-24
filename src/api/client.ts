@@ -1,6 +1,7 @@
 import type {
   JobExtractedResponse,
   JobFhirResponse,
+  JobListItem,
   JobResponse,
   JobTextResponse,
   JobValidationResponse,
@@ -31,6 +32,9 @@ export async function uploadFile(file: File): Promise<UploadResponse> {
 }
 
 // ─── Jobs ─────────────────────────────────────────────────────────────────────
+export const getJobs = () =>
+  _fetch<JobListItem[]>(`${BASE}/jobs`);
+
 export const getJob = (jobId: string) =>
   _fetch<JobResponse>(`${BASE}/jobs/${jobId}`);
 
@@ -55,3 +59,17 @@ export const getFhir = (jobId: string) =>
 
 export const getValidation = (jobId: string) =>
   _fetch<JobValidationResponse>(`${BASE}/jobs/${jobId}/validation`);
+
+/** Returns the direct download URL for the Excel workbook — use as an <a href> */
+export const getExcelUrl = (jobId: string) =>
+  `${BASE}/jobs/${jobId}/excel`;
+
+/** Permanently delete a job from the database. Returns void on 204, throws on error. */
+export async function deleteJob(jobId: string): Promise<void> {
+  const res = await fetch(`${BASE}/jobs/${jobId}`, { method: "DELETE" });
+  if (!res.ok) {
+    let detail = `HTTP ${res.status}`;
+    try { const body = await res.json(); detail = body.detail ?? detail; } catch {}
+    throw new Error(detail);
+  }
+}

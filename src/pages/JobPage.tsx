@@ -1,88 +1,102 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useParams, Link } from "react-router-dom";
-import {
-  getJob, getExtracted, generateFhir, getFhir, getValidation,
-} from "../api/client";
-import type {
-  JobResponse, JobExtractedResponse, JobFhirResponse, JobValidationResponse,
-} from "../types/api";
-import ExtractionViewer from "../components/ExtractionViewer";
-import FhirBundleViewer from "../components/FhirBundleViewer";
-import ValidationReport from "../components/ValidationReport";
-import HumanReviewEditor from "../components/HumanReviewEditor";
+import { useParams, Link, useNavigate } from "react-router-dom";
+import { getJob } from "../api/client";
+import type { JobResponse } from "../types/api";
 
-type Tab = "extraction" | "review" | "fhir" | "validation";
+// Pipeline stage configuration shown during processing
+const PIPELINE_STAGES = [
+  { key: "text",       label: "Text Extraction",   hint: "OCR & text parsing",          delay: 0 },
+  { key: "clinical",   label: "Clinical Extraction", hint: "Structured data via LLM",   delay: 6 },
+  { key: "excel",      label: "Generating Report",  hint: "Building verification report", delay: 14 },
+];
 
-const STATUS_CONFIG: Record<string, { label: string; dot: string; text: string }> = {
-  pending:    { label: "Queued",      dot: "bg-slate-400",  text: "text-slate-400" },
-  processing: { label: "Processing…", dot: "bg-amber-400 animate-pulse", text: "text-amber-300" },
-  completed:  { label: "Completed",   dot: "bg-emerald-400", text: "text-emerald-300" },
-  failed:     { label: "Failed",      dot: "bg-red-400",     text: "text-red-300" },
-};
+function PipelineIndicator({ startedAt }: { startedAt: number }) {
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setElapsed(Math.floor((Date.now() - startedAt) / 1000)), 1000);
+    return () => clearInterval(id);
+  }, [startedAt]);
+
+  return (
+    <div className="mt-5 p-5 rounded-xl bg-amber-500/5 border border-amber-500/20">
+      <p className="text-xs text-amber-400/70 mb-4 font-medium tracking-wide uppercase">Pipeline Running</p>
+      <div className="space-y-3">
+        {PIPELINE_STAGES.map((stage, idx) => {
+          const active = elapsed >= stage.delay;
+          const done   = idx < PIPELINE_STAGES.length - 1 && elapsed >= PIPELINE_STAGES[idx + 1].delay;
+          return (
+            <div key={stage.key} className="flex items-center gap-3">
+              {/* indicator dot */}
+              <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-700 ${
+                done   ? "bg-emerald-500/30 border border-emerald-500/50"
+                : active ? "bg-amber-500/20 border border-amber-400/40"
+                : "bg-slate-800 border border-slate-700"
+              }`}>
+                {done ? (
+                  <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                ) : active ? (
+                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                ) : (
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-600" />
+                )}
+              </div>
+              {/* label */}
+              <div>
+                <p className={`text-sm font-medium transition-colors duration-500 ${
+                  done ? "text-emerald-300" : active ? "text-amber-300" : "text-slate-600"
+                }`}>{stage.label}</p>
+                {active && !done && (
+                  <p className="text-xs text-amber-400/60 mt-0.5">{stage.hint}</p>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 export default function JobPage() {
-  const { jobId } = useParams<{ jobId: string }>();
-  const [job, setJob]           = useState<JobResponse | null>(null);
-  const [extracted, setExtracted] = useState<JobExtractedResponse | null>(null);
-  const [fhir, setFhir]         = useState<JobFhirResponse | null>(null);
-  const [validation, setValidation] = useState<JobValidationResponse | null>(null);
-  const [tab, setTab]           = useState<Tab>("extraction");
-  const [genLoading, setGenLoading] = useState(false);
-  const [genError, setGenError] = useState<string | null>(null);
+  const { jobId }       = useParams<{ jobId: string }>();
+  const navigate        = useNavigate();
+  const [job, setJob]   = useState<JobResponse | null>(null);
   const [pageError, setPageError] = useState<string | null>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const loadExtracted = useCallback(async () => {
-    if (!jobId) return;
-    try {
-      const ext = await getExtracted(jobId);
-      setExtracted(ext);
-    } catch { /* 202 while still processing is expected */ }
-  }, [jobId]);
+  const pollRef         = useRef<ReturnType<typeof setInterval> | null>(null);
+  const processingStart = useRef<number>(Date.now());
 
   const pollStatus = useCallback(async () => {
     if (!jobId) return;
     try {
       const j = await getJob(jobId);
       setJob(j);
-      if (j.status === "completed" || j.status === "failed") {
+
+      if (j.status === "awaiting_verification") {
         if (pollRef.current) clearInterval(pollRef.current);
-        if (j.status === "completed") await loadExtracted();
+        navigate(`/jobs/${jobId}/review`, { replace: true });
+        return;
+      }
+      if (j.status === "completed") {
+        if (pollRef.current) clearInterval(pollRef.current);
+        navigate(`/jobs/${jobId}/output`, { replace: true });
+        return;
+      }
+      if (j.status === "failed") {
+        if (pollRef.current) clearInterval(pollRef.current);
       }
     } catch (err: unknown) {
       setPageError(err instanceof Error ? err.message : "Failed to load job");
     }
-  }, [jobId, loadExtracted]);
+  }, [jobId, navigate]);
 
   useEffect(() => {
+    processingStart.current = Date.now();
     pollStatus();
     pollRef.current = setInterval(pollStatus, 3000);
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [pollStatus]);
-
-  // Pre-load existing FHIR/validation if job already has them
-  useEffect(() => {
-    if (!jobId || !job || job.status !== "completed") return;
-    getFhir(jobId).then(setFhir).catch(() => {});
-    getValidation(jobId).then(setValidation).catch(() => {});
-  }, [jobId, job?.status]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handleGenerateFhir = async () => {
-    if (!jobId) return;
-    setGenError(null);
-    setGenLoading(true);
-    try {
-      const bundle = await generateFhir(jobId);
-      setFhir(bundle);
-      const val = await getValidation(jobId);
-      setValidation(val);
-      setTab("fhir");
-    } catch (err: unknown) {
-      setGenError(err instanceof Error ? err.message : "Generation failed");
-    } finally {
-      setGenLoading(false);
-    }
-  };
 
   if (pageError) return (
     <div className="glass border border-red-500/30 bg-red-500/10 rounded-xl p-6 text-red-300">
@@ -98,122 +112,36 @@ export default function JobPage() {
     </div>
   );
 
-  const st = STATUS_CONFIG[job.status] ?? STATUS_CONFIG.pending;
-  const isProcessing = job.status === "pending" || job.status === "processing";
-
   return (
-    <div>
-      {/* Job header */}
-      <div className="glass p-6 mb-6">
-        <div className="flex items-start justify-between flex-wrap gap-4">
+    <div className="max-w-2xl mx-auto">
+      <div className="glass p-6">
+        <div className="flex items-start justify-between mb-4">
           <div>
-            <div className="flex items-center gap-2 mb-2">
-              <span className={`w-2.5 h-2.5 rounded-full ${st.dot}`} />
-              <span className={`text-sm font-medium ${st.text}`}>{st.label}</span>
-              {job.document_type && (
-                <span className="ml-2 px-2 py-0.5 rounded-full bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 text-xs">
-                  {job.document_type.replace(/_/g, " ")}
-                </span>
-              )}
-            </div>
-            <h1 className="text-2xl font-bold text-white">{job.filename}</h1>
-            <p className="text-slate-500 text-xs mt-1 font-mono">{job.job_id}</p>
-          </div>
-          <div className="flex gap-2 flex-wrap">
-            <Link to="/" className="btn-secondary text-sm">← New Upload</Link>
-            {job.status === "completed" && (
-              <button
-                onClick={handleGenerateFhir}
-                disabled={genLoading}
-                className="btn-primary text-sm flex items-center gap-2"
-              >
-                {genLoading && <div className="spinner w-4 h-4" />}
-                {genLoading ? "Generating…" : fhir ? "Regenerate FHIR" : "Generate FHIR Bundle"}
-              </button>
+            <p className="text-slate-500 text-xs mb-1 font-mono">{job.job_id}</p>
+            <h1 className="text-xl font-bold text-white break-all">{job.filename}</h1>
+            {job.document_type && (
+              <span className="mt-2 inline-block px-2 py-0.5 rounded-full bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 text-xs">
+                {job.document_type.replace(/_/g, " ")}
+              </span>
             )}
           </div>
+          <Link to="/" className="btn-secondary text-sm flex-shrink-0">← New Upload</Link>
         </div>
 
-        {/* Processing spinner */}
-        {isProcessing && (
-          <div className="mt-5 flex items-center gap-4 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20">
-            <div className="spinner w-5 h-5 border-2 border-amber-400/30 border-t-amber-400" />
-            <div className="text-sm text-amber-300">
-              <p className="font-medium">Pipeline running…</p>
-              <p className="text-xs opacity-70 mt-0.5">
-                {job.status === "pending" ? "Queued — starting soon" : "OCR → Abbreviation expansion → LLM extraction"}
-              </p>
-            </div>
-          </div>
+        {/* Processing animation */}
+        {(job.status === "pending" || job.status === "processing") && (
+          <PipelineIndicator startedAt={processingStart.current} />
         )}
 
-        {/* Error */}
-        {job.status === "failed" && job.error_message && (
-          <div className="mt-4 p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-sm">
+        {/* Failed state */}
+        {job.status === "failed" && (
+          <div className="mt-4 p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300">
             <p className="font-semibold mb-1">Pipeline Error</p>
-            <p className="text-xs opacity-80">{job.error_message}</p>
+            <p className="text-sm opacity-80">{job.error_message ?? "An unknown error occurred."}</p>
+            <Link to="/" className="btn-secondary mt-4 inline-block text-sm">← Try Another File</Link>
           </div>
-        )}
-
-        {genError && (
-          <div className="mt-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 text-sm">{genError}</div>
         )}
       </div>
-
-      {/* Tabs — only when extraction is available */}
-      {extracted && (
-        <>
-          <div className="flex gap-1 mb-6 glass p-1 rounded-xl w-fit">
-            {([ "extraction", "review", "fhir", "validation"] as Tab[]).map(t => (
-              <button
-                key={t}
-                onClick={() => setTab(t)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all capitalize ${
-                  tab === t
-                    ? "bg-indigo-500/30 text-indigo-200 border border-indigo-500/40"
-                    : "text-slate-400 hover:text-white"
-                }`}
-              >
-                {t === "fhir" ? "FHIR Bundle" : t === "validation" ? "Validation" : t === "review" ? "Edit / Review" : "Extraction"}
-                {t === "fhir" && fhir && (
-                  <span className="ml-1.5 w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block align-middle" />
-                )}
-                {t === "validation" && validation && (
-                  <span className={`ml-1.5 w-1.5 h-1.5 rounded-full inline-block align-middle ${
-                    validation.is_valid ? "bg-emerald-400" : "bg-red-400"
-                  }`} />
-                )}
-              </button>
-            ))}
-          </div>
-
-          <div className="glass p-6">
-            {tab === "extraction" && <ExtractionViewer data={extracted} />}
-            {tab === "review" && (
-              <HumanReviewEditor
-                jobId={job.job_id}
-                data={extracted}
-                onSaved={updated => setExtracted(updated)}
-              />
-            )}
-            {tab === "fhir" && (
-              fhir
-                ? <FhirBundleViewer data={fhir} />
-                : <div className="text-center py-10 text-slate-500">
-                    <p className="mb-3">No FHIR bundle yet.</p>
-                    <button onClick={handleGenerateFhir} disabled={genLoading} className="btn-primary text-sm">
-                      {genLoading ? "Generating…" : "Generate FHIR Bundle"}
-                    </button>
-                  </div>
-            )}
-            {tab === "validation" && (
-              validation
-                ? <ValidationReport data={validation} />
-                : <p className="text-slate-500 text-center py-10">Generate a FHIR bundle first to see validation results.</p>
-            )}
-          </div>
-        </>
-      )}
     </div>
   );
 }

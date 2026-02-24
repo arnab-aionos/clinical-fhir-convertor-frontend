@@ -2,76 +2,119 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── Global dark glassmorphism theme ─────────────────────────────────────── */
+/* ── Design tokens ────────────────────────────────────────────────────────── */
 :root {
-  --bg-primary: #0f172a;
-  --bg-secondary: #1e293b;
-  --accent: #6366f1;
-  --accent-2: #8b5cf6;
+  --bg-base:    #060b18;
+  --bg-surface: #0d1526;
+  --bg-card:    #0f1a2e;
+  --border:     #1a2740;
+  --accent:     #0ea5e9;
+  --accent-2:   #6366f1;
 }
 
 body {
-  @apply bg-slate-950 text-slate-100 min-h-screen;
-  background: radial-gradient(ellipse at top left, #1e1b4b 0%, #0f172a 40%, #0c1524 100%);
+  @apply text-slate-100 min-h-screen;
+  background: #060b18;
+  background-image:
+    radial-gradient(ellipse 80% 50% at 10% -10%, rgba(14,165,233,0.08) 0%, transparent 55%),
+    radial-gradient(ellipse 60% 40% at 90% 110%, rgba(99,102,241,0.07) 0%, transparent 55%);
   background-attachment: fixed;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
-/* ── Glassmorphism card ───────────────────────────────────────────────────── */
+/* ── Solid card ───────────────────────────────────────────────────────────── */
+.card {
+  @apply rounded-xl;
+  background: #0f1a2e;
+  border: 1px solid #1a2740;
+}
+
+/* ── Glass — minimal, used for navbar/modals ─────────────────────────────── */
 .glass {
-  @apply backdrop-blur-md border border-white/10 rounded-2xl;
-  background: rgba(255, 255, 255, 0.05);
+  @apply rounded-xl backdrop-blur-sm;
+  background: rgba(9, 15, 30, 0.85);
+  border: 1px solid #1a2740;
 }
 .glass-strong {
-  @apply backdrop-blur-xl border border-white/20 rounded-2xl;
-  background: rgba(255, 255, 255, 0.08);
+  @apply rounded-xl backdrop-blur-md;
+  background: rgba(9, 15, 30, 0.95);
+  border: 1px solid #1e2d45;
 }
 
 /* ── Gradient text ────────────────────────────────────────────────────────── */
 .gradient-text {
-  background: linear-gradient(135deg, #818cf8 0%, #a78bfa 50%, #38bdf8 100%);
+  background: linear-gradient(135deg, #38bdf8 0%, #818cf8 55%, #a78bfa 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
-/* ── Gradient button ──────────────────────────────────────────────────────── */
+/* ── Primary button (sky → indigo) ───────────────────────────────────────── */
 .btn-primary {
-  @apply px-6 py-3 rounded-xl font-semibold text-white transition-all duration-200
-         hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
+  @apply px-5 py-2.5 rounded-lg font-semibold text-sm text-white transition-all duration-200
+         hover:brightness-110 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed;
+  background: linear-gradient(135deg, #0ea5e9, #6366f1);
+  box-shadow: 0 0 16px rgba(14, 165, 233, 0.22);
 }
 .btn-primary:hover:not(:disabled) {
-  box-shadow: 0 0 30px rgba(99, 102, 241, 0.5);
+  box-shadow: 0 0 24px rgba(14, 165, 233, 0.38);
 }
 
+/* ── Secondary button ─────────────────────────────────────────────────────── */
 .btn-secondary {
-  @apply px-5 py-2.5 rounded-xl font-medium text-slate-300 border border-white/10
-         transition-all duration-200 hover:bg-white/10 active:scale-95
-         disabled:opacity-50 disabled:cursor-not-allowed;
+  @apply px-4 py-2 rounded-lg font-medium text-sm text-slate-300 transition-all duration-200
+         hover:text-white active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed;
+  background: transparent;
+  border: 1px solid #1a2740;
+}
+.btn-secondary:hover:not(:disabled) {
+  background: rgba(255,255,255,0.05);
+  border-color: #2d4060;
+}
+
+/* ── Danger button ────────────────────────────────────────────────────────── */
+.btn-danger {
+  @apply px-4 py-2 rounded-lg font-medium text-sm text-red-400 transition-all duration-200
+         hover:bg-red-500/10 hover:text-red-300 active:scale-95
+         disabled:opacity-40 disabled:cursor-not-allowed;
+  background: transparent;
+  border: 1px solid rgba(239,68,68,0.25);
+}
+.btn-danger:hover:not(:disabled) {
+  border-color: rgba(239,68,68,0.45);
 }
 
 /* ── Scrollbar ────────────────────────────────────────────────────────────── */
-::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { @apply bg-white/20 rounded-full; }
-::-webkit-scrollbar-thumb:hover { @apply bg-white/30; }
+::-webkit-scrollbar-thumb { background: #1a2740; border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: #2d4060; }
 
 /* ── JSON code block ──────────────────────────────────────────────────────── */
 .json-block {
-  @apply text-xs font-mono bg-black/30 rounded-xl p-4 overflow-auto max-h-96
-         border border-white/5 text-emerald-300;
+  @apply text-xs font-mono rounded-xl p-4 overflow-auto max-h-96;
+  background: #040810;
+  border: 1px solid #1a2740;
+  color: #34d399;
 }
 
 /* ── Field edit input ─────────────────────────────────────────────────────── */
 .field-input {
-  @apply w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm
-         text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50
-         focus:border-indigo-500/50 transition-all;
+  @apply w-full rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none
+         focus:ring-2 focus:ring-sky-500/30 transition-all;
+  background: #0d1526;
+  border: 1px solid #1a2740;
 }
+.field-input:focus { border-color: #0ea5e9; }
 
 /* ── Spinner ──────────────────────────────────────────────────────────────── */
 .spinner {
-  @apply w-5 h-5 border-2 border-white/20 border-t-indigo-400 rounded-full animate-spin;
+  @apply w-5 h-5 rounded-full animate-spin;
+  border: 2px solid #1a2740;
+  border-top-color: #0ea5e9;
+}
+
+/* ── Pulse animation ──────────────────────────────────────────────────────── */
+.animate-pulse-fast {
+  animation: pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
