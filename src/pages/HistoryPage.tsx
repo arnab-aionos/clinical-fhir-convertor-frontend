@@ -1,7 +1,23 @@
 import { useEffect, useState, useCallback } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { getJobs, deleteJob } from "../api/client";
-import type { JobListItem, JobStatus } from "../types/api";
+import type { JobListItem, JobStatus, PaginatedJobsResponse } from "../types/api";
+
+function fmtDate(iso: string): string {
+  const d = new Date(iso);
+  return (
+    d.toLocaleDateString("en-IN", { day: "numeric", month: "short" }) +
+    " · " +
+    d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })
+  );
+}
+
+function primaryHref(job: JobListItem): string | null {
+  if (job.status === "awaiting_verification") return `/jobs/${job.job_id}/review`;
+  if (job.status === "completed") return `/jobs/${job.job_id}/output`;
+  if (job.status === "pending" || job.status === "processing") return `/jobs/${job.job_id}`;
+  return null;
+}
 
 // Status badge
 
@@ -22,13 +38,12 @@ function StatusBadge({ status }: { status: JobStatus }) {
   );
 }
 
-// Action buttons based on status
+// Action buttons
 
 function ActionButtons({ job, onDelete }: { job: JobListItem; onDelete: (id: string) => void }) {
   const id = job.job_id;
   return (
     <div className="flex items-center justify-end gap-1.5">
-      {/* Primary action */}
       {job.status === "awaiting_verification" && (
         <Link to={`/jobs/${id}/review`} className="btn-primary text-xs px-3 py-1.5">
           Review →
@@ -54,7 +69,6 @@ function ActionButtons({ job, onDelete }: { job: JobListItem; onDelete: (id: str
           Progress
         </Link>
       )}
-      {/* Delete — always visible */}
       <button
         onClick={() => onDelete(id)}
         className="btn-danger text-xs px-2.5 py-1.5"
@@ -68,30 +82,23 @@ function ActionButtons({ job, onDelete }: { job: JobListItem; onDelete: (id: str
   );
 }
 
-// Sort controls
+// Tabs
 
-type SortKey = "created_at" | "status" | "filename";
-type SortDir = "asc" | "desc";
+type TabKey = "all" | "discharge_summary" | "diagnostic_report";
 
-function sortJobs(jobs: JobListItem[], key: SortKey, dir: SortDir): JobListItem[] {
-  return [...jobs].sort((a, b) => {
-    let av = a[key] as string;
-    let bv = b[key] as string;
-    // For status, sort by "severity" so active jobs float up
-    if (key === "status") {
-      const order: Record<JobStatus, number> = {
-        processing: 0, awaiting_verification: 1, pending: 2, failed: 3, completed: 4,
-      };
-      av = String(order[a.status as JobStatus] ?? 99);
-      bv = String(order[b.status as JobStatus] ?? 99);
-    }
-    return dir === "asc" ? av.localeCompare(bv) : bv.localeCompare(av);
-  });
-}
+const TABS: { key: TabKey; label: string }[] = [
+  { key: "all",               label: "All" },
+  { key: "discharge_summary", label: "Discharge Summary" },
+  { key: "diagnostic_report", label: "Diagnostic Report" },
+];
+
+const EMPTY_MESSAGES: Record<TabKey, string> = {
+  all:               "No extractions yet. Upload a clinical document to get started.",
+  discharge_summary: "No discharge summary extractions found.",
+  diagnostic_report: "No diagnostic report extractions found.",
+};
 
 // Pagination helper
-
-const ITEMS_PER_PAGE = 20;
 
 function getPageNumbers(current: number, total: number): (number | "…")[] {
   if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
@@ -106,20 +113,26 @@ function getPageNumbers(current: number, total: number): (number | "…")[] {
 // Main page
 
 export default function HistoryPage() {
-  const [jobs, setJobs]     = useState<JobListItem[]>([]);
+  const navigate = useNavigate();
+  const [data, setData] = useState<PaginatedJobsResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError]   = useState<string | null>(null);
-  const [sortKey, setSortKey] = useState<SortKey>("created_at");
-  const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<TabKey>("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (tab: TabKey, page: number) => {
     setLoading(true);
+    setError(null);
     try {
-      const list = await getJobs();
-      setJobs(list);
+      const params: { page: number; page_size: number; document_type?: string } = {
+        page,
+        page_size: 10,
+      };
+      if (tab !== "all") params.document_type = tab;
+      const result = await getJobs(params);
+      setData(result);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to load job history");
     } finally {
@@ -127,12 +140,29 @@ export default function HistoryPage() {
     }
   }, []);
 
+  useEffect(() => { load("all", 1); }, [load]);
+
+  const handleTabChange = (tab: TabKey) => {
+    setActiveTab(tab);
+    setCurrentPage(1);
+    load(tab, 1);
+  };
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    load(activeTab, page);
+  };
+
   const handleDeleteConfirm = async () => {
     if (!confirmDeleteId) return;
     setDeleting(true);
     try {
       await deleteJob(confirmDeleteId);
-      setJobs(prev => prev.filter(j => j.job_id !== confirmDeleteId));
+      // If the deleted item was the only one on the current page, go back one page
+      const newPage =
+        data && data.jobs.length === 1 && currentPage > 1 ? currentPage - 1 : currentPage;
+      setCurrentPage(newPage);
+      await load(activeTab, newPage);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Delete failed");
     } finally {
@@ -141,33 +171,15 @@ export default function HistoryPage() {
     }
   };
 
-  useEffect(() => { load(); }, [load]);
-
-  const handleSort = (key: SortKey) => {
-    if (sortKey === key) {
-      setSortDir(d => d === "asc" ? "desc" : "asc");
-    } else {
-      setSortKey(key);
-      setSortDir("desc");
-    }
-    setCurrentPage(1);
-  };
-
-  const sortedJobs   = sortJobs(jobs, sortKey, sortDir);
-  const totalPages   = Math.max(1, Math.ceil(sortedJobs.length / ITEMS_PER_PAGE));
-  const startItem    = (currentPage - 1) * ITEMS_PER_PAGE + 1;
-  const endItem      = Math.min(currentPage * ITEMS_PER_PAGE, sortedJobs.length);
-  const paginatedJobs = sortedJobs.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
-
-  const SortIcon = ({ col }: { col: SortKey }) => (
-    <span className={`ml-1 text-xs ${sortKey === col ? "text-indigo-400" : "text-slate-600"}`}>
-      {sortKey === col ? (sortDir === "asc" ? "↑" : "↓") : "↕"}
-    </span>
-  );
+  const jobs = data?.jobs ?? [];
+  const totalPages = data?.total_pages ?? 1;
+  const total = data?.total ?? 0;
+  const startItem = total === 0 ? 0 : (currentPage - 1) * (data?.page_size ?? 10) + 1;
+  const endItem = Math.min(currentPage * (data?.page_size ?? 10), total);
 
   return (
     <div>
-      {/* ── Delete confirmation modal ── */}
+      {/* Delete confirmation modal */}
       {confirmDeleteId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
           <div className="card rounded-2xl p-6 max-w-sm w-full border border-red-500/20">
@@ -188,15 +200,20 @@ export default function HistoryPage() {
         </div>
       )}
 
+      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-white">Job History</h1>
           <p className="text-slate-500 text-sm mt-1">
-            {loading ? "Loading…" : `${sortedJobs.length} job${sortedJobs.length !== 1 ? "s" : ""} total`}
+            {loading ? "Loading…" : `${total} job${total !== 1 ? "s" : ""} total`}
           </p>
         </div>
         <div className="flex gap-2">
-          <button onClick={load} className="btn-secondary text-sm flex items-center gap-2">
+          <button
+            onClick={() => load(activeTab, currentPage)}
+            disabled={loading}
+            className="btn-secondary text-sm flex items-center gap-2"
+          >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
@@ -210,50 +227,62 @@ export default function HistoryPage() {
         <div className="glass border border-red-500/30 bg-red-500/10 rounded-xl p-4 text-red-300 text-sm mb-4">{error}</div>
       )}
 
+      {/* Tabs */}
+      <div className="flex gap-1 mb-4 border-b" style={{ borderColor: "#1a2740" }}>
+        {TABS.map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => handleTabChange(tab.key)}
+            disabled={loading}
+            className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
+              activeTab === tab.key
+                ? "text-indigo-300 border-indigo-400"
+                : "text-slate-400 border-transparent hover:text-slate-200"
+            }`}
+          >
+            {tab.label}
+            {activeTab === tab.key && data != null && (
+              <span className="ml-2 text-xs px-1.5 py-0.5 rounded-full"
+                    style={{ background: "rgba(99,102,241,0.15)", color: "#a5b4fc" }}>
+                {total}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* Table */}
       {loading ? (
-        <div className="flex justify-center items-center h-48">
+        <div className="glass rounded-xl flex items-center justify-center h-40">
           <div className="spinner w-8 h-8 border-2" />
         </div>
-      ) : sortedJobs.length === 0 ? (
+      ) : jobs.length === 0 ? (
         <div className="glass rounded-xl p-12 text-center">
-          <p className="text-slate-400 text-lg mb-2">No jobs yet</p>
-          <p className="text-slate-600 text-sm mb-6">Upload a clinical document to get started.</p>
-          <Link to="/" className="btn-primary text-sm">Upload Document</Link>
+          <p className="text-slate-400 text-lg mb-2">{EMPTY_MESSAGES[activeTab].split(".")[0]}.</p>
+          {activeTab === "all" && (
+            <Link to="/" className="btn-primary text-sm mt-4 inline-block">Upload Document</Link>
+          )}
         </div>
       ) : (
         <div className="glass rounded-xl overflow-hidden">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-white/10 text-left">
-                <th
-                  className="px-4 py-3 text-slate-400 font-medium cursor-pointer hover:text-white select-none"
-                  onClick={() => handleSort("filename")}
-                >
-                  File <SortIcon col="filename" />
-                </th>
+                <th className="px-4 py-3 text-slate-400 font-medium">File</th>
                 <th className="px-4 py-3 text-slate-400 font-medium hidden sm:table-cell">Type</th>
-                <th
-                  className="px-4 py-3 text-slate-400 font-medium cursor-pointer hover:text-white select-none"
-                  onClick={() => handleSort("status")}
-                >
-                  Status <SortIcon col="status" />
-                </th>
-                <th
-                  className="px-4 py-3 text-slate-400 font-medium cursor-pointer hover:text-white select-none hidden md:table-cell"
-                  onClick={() => handleSort("created_at")}
-                >
-                  Submitted <SortIcon col="created_at" />
-                </th>
+                <th className="px-4 py-3 text-slate-400 font-medium">Status</th>
+                <th className="px-4 py-3 text-slate-400 font-medium hidden md:table-cell">Submitted</th>
                 <th className="px-4 py-3 text-slate-400 font-medium text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {paginatedJobs.map((job, idx) => (
+              {jobs.map((job, idx) => (
                 <tr
                   key={job.job_id}
+                  onClick={() => { const h = primaryHref(job); if (h) navigate(h); }}
                   className={`border-b border-white/5 last:border-0 hover:bg-white/3 transition-colors ${
                     idx % 2 === 0 ? "" : "bg-white/[0.02]"
-                  }`}
+                  } ${primaryHref(job) ? "cursor-pointer" : ""}`}
                 >
                   <td className="px-4 py-3">
                     <div className="font-medium text-white truncate max-w-xs">{job.filename}</div>
@@ -273,9 +302,9 @@ export default function HistoryPage() {
                     )}
                   </td>
                   <td className="px-4 py-3 text-slate-500 text-xs hidden md:table-cell">
-                    {new Date(job.created_at).toLocaleString()}
+                    {fmtDate(job.created_at)}
                   </td>
-                  <td className="px-4 py-3 text-right">
+                  <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
                     <ActionButtons job={job} onDelete={setConfirmDeleteId} />
                   </td>
                 </tr>
@@ -283,16 +312,16 @@ export default function HistoryPage() {
             </tbody>
           </table>
 
-          {/* ── Pagination ── */}
+          {/* Pagination */}
           {totalPages > 1 && (
             <div className="flex items-center justify-between px-4 py-3" style={{ borderTop: "1px solid #1a2740" }}>
               <span className="text-xs text-slate-500">
-                Showing {startItem}–{endItem} of {sortedJobs.length}
+                Showing {startItem}–{endItem} of {total}
               </span>
               <div className="flex items-center gap-1">
                 <button
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1 || loading}
                   className="btn-secondary text-xs px-3 py-1.5"
                 >
                   ← Prev
@@ -303,7 +332,8 @@ export default function HistoryPage() {
                   ) : (
                     <button
                       key={item}
-                      onClick={() => setCurrentPage(item as number)}
+                      onClick={() => handlePageChange(item as number)}
+                      disabled={loading}
                       className={`w-7 h-7 rounded text-xs font-medium transition-colors ${
                         currentPage === item
                           ? "text-sky-400 border border-sky-500/30"
@@ -316,8 +346,8 @@ export default function HistoryPage() {
                   )
                 )}
                 <button
-                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages}
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage === totalPages || loading}
                   className="btn-secondary text-xs px-3 py-1.5"
                 >
                   Next →

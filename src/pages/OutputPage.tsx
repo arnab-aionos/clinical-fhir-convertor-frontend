@@ -34,7 +34,7 @@ function SectionCard({ title, icon, children }: { title: string; icon: string; c
 }
 
 function CollapsibleJson({ data }: { data: Record<string, unknown> }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
   const [copied, setCopied] = useState(false);
   const json = JSON.stringify(data, null, 2);
   const handleCopy = () => {
@@ -215,6 +215,25 @@ export default function OutputPage() {
                 Excel
               </a>
             )}
+            {fhir?.fhir_bundle && (
+              <button
+                onClick={() => {
+                  const blob = new Blob([JSON.stringify(fhir.fhir_bundle, null, 2)], { type: "application/json" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = `${job.job_id}_fhir.json`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+                className="btn-secondary text-sm flex items-center gap-1.5"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                FHIR JSON
+              </button>
+            )}
             <Link to={`/jobs/${jobId}/review`} className="btn-secondary text-sm">Edit Data</Link>
             <Link to="/history" className="btn-secondary text-sm">History</Link>
             <Link to="/" className="btn-primary text-sm">+ New Upload</Link>
@@ -228,7 +247,6 @@ export default function OutputPage() {
               { label: "Resources", value: String(validation.resource_count), color: "text-white" },
               { label: "Errors", value: String(validation.errors.length), color: validation.errors.length > 0 ? "text-red-400" : "text-emerald-400" },
               { label: "Warnings", value: String(validation.warnings.length), color: validation.warnings.length > 0 ? "text-amber-400" : "text-slate-400" },
-              ...(docType ? [{ label: "Type", value: docType.replace(/_/g, " "), color: "text-slate-300" }] : []),
             ].map(s => (
               <div key={s.label} className="flex items-center gap-2">
                 <span className="text-xs text-slate-500">{s.label}</span>

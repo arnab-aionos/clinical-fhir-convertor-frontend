@@ -5,6 +5,7 @@ import type {
   JobResponse,
   JobTextResponse,
   JobValidationResponse,
+  PaginatedJobsResponse,
   UploadResponse,
 } from "../types/api";
 
@@ -25,15 +26,28 @@ async function _fetch<T>(url: string, options?: RequestInit): Promise<T> {
 }
 
 // Upload
-export async function uploadFile(file: File): Promise<UploadResponse> {
+export async function uploadFile(file: File, documentType?: string): Promise<UploadResponse> {
   const form = new FormData();
   form.append("file", file);
+  if (documentType) form.append("document_type", documentType);
   return _fetch<UploadResponse>(`${BASE}/upload`, { method: "POST", body: form });
 }
 
 // Jobs
-export const getJobs = () =>
-  _fetch<JobListItem[]>(`${BASE}/jobs`);
+export interface GetJobsParams {
+  document_type?: string;
+  page?: number;
+  page_size?: number;
+}
+
+export const getJobs = (params?: GetJobsParams) => {
+  const qs = new URLSearchParams();
+  if (params?.document_type) qs.set("document_type", params.document_type);
+  if (params?.page != null) qs.set("page", String(params.page));
+  if (params?.page_size != null) qs.set("page_size", String(params.page_size));
+  const query = qs.toString() ? `?${qs}` : "";
+  return _fetch<PaginatedJobsResponse>(`${BASE}/jobs${query}`);
+};
 
 export const getJob = (jobId: string) =>
   _fetch<JobResponse>(`${BASE}/jobs/${jobId}`);

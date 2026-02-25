@@ -61,3 +61,12 @@ export type UploadResponse = JobResponse;
 
 // Job list item (for history page)
 export type JobListItem = JobResponse;
+
+// Paginated jobs list (returned by GET /api/v1/jobs)
+export interface PaginatedJobsResponse {
+  jobs: JobListItem[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
