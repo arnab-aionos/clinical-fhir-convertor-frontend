@@ -82,54 +82,78 @@ function CodeBadge({ system, code }: { system: "ICD-10" | "LOINC"; code: string 
   );
 }
 
-function RenderList({ items }: { items: unknown[] }) {
+function RenderItem({ item }: { item: unknown }) {
+  if (typeof item === "string") {
+    return (
+      <span className="flex items-start gap-2 text-sm text-slate-300">
+        <span className="text-sky-500 mt-0.5 flex-shrink-0">•</span>{item}
+      </span>
+    );
+  }
+  if (typeof item === "object" && item !== null) {
+    return (
+      <div className="rounded-lg p-3 h-full" style={{ background: "#0d1526", border: "1px solid #1a2740" }}>
+        {/* Clinical code badges */}
+        {(!!(item as Record<string, unknown>).icd_code || !!(item as Record<string, unknown>).loinc_code) && (
+          <div className="flex flex-wrap gap-1.5 mb-2.5">
+            {!!(item as Record<string, unknown>).icd_code && (
+              <CodeBadge system="ICD-10" code={String((item as Record<string, unknown>).icd_code)} />
+            )}
+            {!!(item as Record<string, unknown>).loinc_code && (
+              <CodeBadge system="LOINC" code={String((item as Record<string, unknown>).loinc_code)} />
+            )}
+          </div>
+        )}
+        <div className="space-y-1">
+          {Object.entries(item as Record<string, unknown>)
+            .filter(([k, v]) => k !== "icd_code" && k !== "loinc_code" && v != null && v !== "")
+            .map(([k, v]) => (
+              <div key={k} className="flex gap-3 text-xs">
+                <span className="text-slate-500 capitalize min-w-[5.5rem] flex-shrink-0">{k.replace(/_/g, " ")}</span>
+                <span className="text-slate-300">{String(v)}</span>
+              </div>
+            ))}
+        </div>
+      </div>
+    );
+  }
+  return null;
+}
+
+function RenderList({ items, cols = 1 }: { items: unknown[]; cols?: number }) {
   if (!items.length) return <p className="text-slate-600 text-xs italic">None recorded</p>;
+  if (cols === 2) {
+    return (
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {items.map((item, i) => <div key={i}><RenderItem item={item} /></div>)}
+      </div>
+    );
+  }
+  if (cols === 3) {
+    return (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {items.map((item, i) => <div key={i}><RenderItem item={item} /></div>)}
+      </div>
+    );
+  }
   return (
     <ul className="space-y-2">
-      {items.map((item, i) => (
-        <li key={i}>
-          {typeof item === "string" ? (
-            <span className="flex items-start gap-2 text-sm text-slate-300">
-              <span className="text-sky-500 mt-0.5 flex-shrink-0">•</span>{item}
-            </span>
-          ) : typeof item === "object" && item !== null ? (
-            <div className="rounded-lg p-3" style={{ background: "#0d1526", border: "1px solid #1a2740" }}>
-              {/* Clinical code badges */}
-              {(!!(item as Record<string, unknown>).icd_code || !!(item as Record<string, unknown>).loinc_code) && (
-                <div className="flex flex-wrap gap-1.5 mb-2.5">
-                  {!!(item as Record<string, unknown>).icd_code && (
-                    <CodeBadge system="ICD-10" code={String((item as Record<string, unknown>).icd_code)} />
-                  )}
-                  {!!(item as Record<string, unknown>).loinc_code && (
-                    <CodeBadge system="LOINC" code={String((item as Record<string, unknown>).loinc_code)} />
-                  )}
-                </div>
-              )}
-              <div className="space-y-1">
-                {Object.entries(item as Record<string, unknown>)
-                  .filter(([k, v]) => k !== "icd_code" && k !== "loinc_code" && v != null && v !== "")
-                  .map(([k, v]) => (
-                    <div key={k} className="flex gap-3 text-xs">
-                      <span className="text-slate-500 capitalize min-w-[5.5rem] flex-shrink-0">{k.replace(/_/g, " ")}</span>
-                      <span className="text-slate-300">{String(v)}</span>
-                    </div>
-                  ))}
-              </div>
-            </div>
-          ) : null}
-        </li>
-      ))}
+      {items.map((item, i) => <li key={i}><RenderItem item={item} /></li>)}
     </ul>
   );
 }
 
-function ListSection({ title, icon, data }: { title: string; icon: string; data: unknown }) {
+function ListSection({ title, icon, data, cols, className }: {
+  title: string; icon: string; data: unknown; cols?: number; className?: string;
+}) {
   const items = toArr(data);
   if (!items.length) return null;
   return (
-    <SectionCard title={title} icon={icon}>
-      <RenderList items={items} />
-    </SectionCard>
+    <div className={className}>
+      <SectionCard title={title} icon={icon}>
+        <RenderList items={items} cols={cols} />
+      </SectionCard>
+    </div>
   );
 }
 
@@ -316,21 +340,20 @@ export default function OutputPage() {
         </div>
       )}
 
-      {/* ── Clinical sections — 2-column grid ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <ListSection title="Diagnoses"        icon="📋" data={d.diagnoses} />
-        <ListSection title="Procedures"       icon="⚕️"  data={d.procedures} />
-        <ListSection title="Medications"      icon="💊" data={d.medications} />
-        <ListSection title="Investigations"   icon="🧪" data={d.investigations} />
-        <ListSection title="Observations"     icon="🔍" data={d.observations} />
+      {/* ── Clinical sections — single-column, consistent full-width cards ── */}
+      <div className="space-y-4">
+        <ListSection title="Diagnoses"        icon="📋" data={d.diagnoses}        cols={2} />
         <ListSection title="Chief Complaints" icon="📝" data={d.chief_complaints} />
-
+        <ListSection title="Procedures"       icon="⚕️"  data={d.procedures}       cols={2} />
+        <ListSection title="Medications"      icon="💊" data={d.medications}       cols={2} />
         {typeof d.vitals === "object" && d.vitals !== null &&
           Object.values(d.vitals as Record<string, unknown>).some(v => v != null && v !== "") && (
           <SectionCard title="Vital Signs" icon="❤️">
             <RenderVitals vitals={d.vitals as Record<string, unknown>} />
           </SectionCard>
         )}
+        <ListSection title="Investigations"   icon="🧪" data={d.investigations}   cols={3} />
+        <ListSection title="Observations"     icon="🔍" data={d.observations}     cols={3} />
       </div>
 
       {/* ── FHIR Validation issues ── */}
