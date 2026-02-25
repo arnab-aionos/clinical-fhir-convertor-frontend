@@ -1,6 +1,6 @@
 # clinical-fhir-convertor-frontend
 
-React frontend for IntelliCliniq — Clinical FHIR Convertor. Provides a browser interface for the full PDF-to-FHIR pipeline: file upload, job status tracking, extracted data review, and FHIR bundle inspection.
+React frontend for UniHealth — Clinical FHIR Convertor. Provides a browser interface for the full PDF-to-FHIR pipeline: file upload, job status tracking, extracted data review, and FHIR bundle inspection.
 
 Built for **NHCX Hackathon Problem Statement 2** — Clinical Documents to FHIR Structured Data Convertor.
 
@@ -150,7 +150,7 @@ clinical-fhir-convertor-frontend/
 
 | Component | File | Description |
 |-----------|------|-------------|
-| Navbar | `components/Navbar.tsx` | Fixed top navigation bar; IntelliCliniq wordmark; links to Upload (`/`) and History (`/history`) |
+| Navbar | `components/Navbar.tsx` | Fixed top navigation bar; UniHealth wordmark; links to Upload (`/`) and History (`/history`) |
 | UploadZone | `components/UploadZone.tsx` | Encapsulates react-dropzone with accept config, active/reject visual states, and file info display |
 
 ---

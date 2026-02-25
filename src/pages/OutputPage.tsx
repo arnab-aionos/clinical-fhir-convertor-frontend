@@ -70,6 +70,18 @@ function CollapsibleJson({ data }: { data: Record<string, unknown> }) {
   );
 }
 
+function CodeBadge({ system, code }: { system: "ICD-10" | "LOINC"; code: string }) {
+  const style = system === "ICD-10"
+    ? { background: "rgba(99,102,241,0.12)", color: "#a5b4fc", border: "1px solid rgba(99,102,241,0.28)" }
+    : { background: "rgba(6,182,212,0.12)",  color: "#67e8f9", border: "1px solid rgba(6,182,212,0.28)" };
+  return (
+    <span className="inline-flex items-center gap-1 font-mono text-xs rounded px-1.5 py-0.5" style={style}>
+      <span className="font-sans opacity-60" style={{ fontSize: "10px" }}>{system}</span>
+      {code}
+    </span>
+  );
+}
+
 function RenderList({ items }: { items: unknown[] }) {
   if (!items.length) return <p className="text-slate-600 text-xs italic">None recorded</p>;
   return (
@@ -82,6 +94,17 @@ function RenderList({ items }: { items: unknown[] }) {
             </span>
           ) : typeof item === "object" && item !== null ? (
             <div className="rounded-lg p-3" style={{ background: "#0d1526", border: "1px solid #1a2740" }}>
+              {/* Clinical code badges */}
+              {(!!(item as Record<string, unknown>).icd_code || !!(item as Record<string, unknown>).loinc_code) && (
+                <div className="flex flex-wrap gap-1.5 mb-2.5">
+                  {!!(item as Record<string, unknown>).icd_code && (
+                    <CodeBadge system="ICD-10" code={String((item as Record<string, unknown>).icd_code)} />
+                  )}
+                  {!!(item as Record<string, unknown>).loinc_code && (
+                    <CodeBadge system="LOINC" code={String((item as Record<string, unknown>).loinc_code)} />
+                  )}
+                </div>
+              )}
               <div className="space-y-1">
                 {Object.entries(item as Record<string, unknown>)
                   .filter(([k, v]) => k !== "icd_code" && k !== "loinc_code" && v != null && v !== "")
