@@ -52,6 +52,28 @@ export const getJobs = (params?: GetJobsParams) => {
 export const getJob = (jobId: string) =>
   _fetch<JobResponse>(`${BASE}/jobs/${jobId}`);
 
+/**
+ * Open a Server-Sent Events stream for job status updates.
+ * The server pushes a new event only when status changes and closes the
+ * stream on terminal status — far more efficient than polling.
+ *
+ * Returns the EventSource so the caller can close it on unmount.
+ */
+export function subscribeJobStatus(
+  jobId: string,
+  onUpdate: (job: JobResponse) => void,
+  onError?: () => void,
+): EventSource {
+  const es = new EventSource(`${BASE}/jobs/${jobId}/stream`);
+  es.onmessage = (event) => {
+    try {
+      onUpdate(JSON.parse(event.data) as JobResponse);
+    } catch { /* ignore malformed frames */ }
+  };
+  es.addEventListener("error", () => { es.close(); onError?.(); });
+  return es;
+}
+
 export const getJobText = (jobId: string) =>
   _fetch<JobTextResponse>(`${BASE}/jobs/${jobId}/text`);
 

@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { getJob } from "../api/client";
+import { subscribeJobStatus } from "../api/client";
 import type { JobResponse } from "../types/api";
 
 // Pipeline stage configuration shown during processing
@@ -64,39 +64,32 @@ export default function JobPage() {
   const navigate        = useNavigate();
   const [job, setJob]   = useState<JobResponse | null>(null);
   const [pageError, setPageError] = useState<string | null>(null);
-  const pollRef         = useRef<ReturnType<typeof setInterval> | null>(null);
+  const esRef           = useRef<EventSource | null>(null);
   const processingStart = useRef<number>(Date.now());
 
-  const pollStatus = useCallback(async () => {
-    if (!jobId) return;
-    try {
-      const j = await getJob(jobId);
-      setJob(j);
-
-      if (j.status === "awaiting_verification") {
-        if (pollRef.current) clearInterval(pollRef.current);
-        navigate(`/jobs/${jobId}/review`, { replace: true });
-        return;
-      }
-      if (j.status === "completed") {
-        if (pollRef.current) clearInterval(pollRef.current);
-        navigate(`/jobs/${jobId}/output`, { replace: true });
-        return;
-      }
-      if (j.status === "failed") {
-        if (pollRef.current) clearInterval(pollRef.current);
-      }
-    } catch (err: unknown) {
-      setPageError(err instanceof Error ? err.message : "Failed to load job");
-    }
-  }, [jobId, navigate]);
-
   useEffect(() => {
+    if (!jobId) return;
     processingStart.current = Date.now();
-    pollStatus();
-    pollRef.current = setInterval(pollStatus, 3000);
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, [pollStatus]);
+
+    const es = subscribeJobStatus(
+      jobId,
+      (j) => {
+        setJob(j);
+        if (j.status === "awaiting_verification") {
+          es.close();
+          navigate(`/jobs/${jobId}/review`, { replace: true });
+        } else if (j.status === "completed") {
+          es.close();
+          navigate(`/jobs/${jobId}/output`, { replace: true });
+        } else if (j.status === "failed") {
+          es.close();
+        }
+      },
+      () => setPageError("Connection lost — please refresh the page"),
+    );
+    esRef.current = es;
+    return () => es.close();
+  }, [jobId, navigate]);
 
   if (pageError) return (
     <div className="glass border border-red-500/30 bg-red-500/10 rounded-xl p-6 text-red-300">
