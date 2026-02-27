@@ -149,15 +149,16 @@ export default function UploadPage() {
       <div className="text-center mb-10">
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-sm font-medium mb-6">
           <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse-fast" />
-          NHCX Hackathon PS2 · AI-Powered FHIR R4 Conversion
+          NHCX PS2 · Claim Submission · FHIR R4
         </div>
         <h1 className="text-4xl md:text-5xl font-bold text-white mb-4 leading-tight">
           Clinical Documents to{" "}
           <span className="gradient-text">FHIR R4</span>
         </h1>
         <p className="text-slate-400 text-lg max-w-xl mx-auto">
-          Select the document type and upload your clinical PDF. The AI pipeline extracts
-          structured data and generates ABDM/NHCX-compliant FHIR R4 bundles.
+          Upload discharge summaries and diagnostic reports. The AI pipeline extracts
+          structured clinical data and generates NHCX-compliant FHIR R4 bundles
+          for health insurance claim submission.
         </p>
       </div>
 

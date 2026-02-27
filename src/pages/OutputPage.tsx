@@ -239,13 +239,17 @@ export default function OutputPage() {
                   {docType.replace(/_/g, " ")}
                 </span>
               )}
+              <span className="text-xs px-2.5 py-0.5 rounded-full font-medium"
+                    style={{ background: "rgba(99,102,241,0.10)", color: "#a5b4fc", border: "1px solid rgba(99,102,241,0.22)" }}>
+                NHCX Claim Submission
+              </span>
               {validation && (
                 <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${
                   isValid
                     ? "text-emerald-400 bg-emerald-500/10 border border-emerald-500/25"
                     : "text-red-400 bg-red-500/10 border border-red-500/20"
                 }`}>
-                  {isValid ? "FHIR Valid" : `${validation.errors.length} error${validation.errors.length !== 1 ? "s" : ""}`}
+                  {isValid ? "FHIR R4 Valid" : `${validation.errors.length} error${validation.errors.length !== 1 ? "s" : ""}`}
                 </span>
               )}
             </div>
@@ -356,21 +360,31 @@ export default function OutputPage() {
         <ListSection title="Observations"     icon="🔍" data={d.observations}     cols={3} />
       </div>
 
-      {/* ── FHIR Validation issues ── */}
+      {/* ── FHIR R4 Validation + NHCX Compliance ── */}
       {validation && (validation.errors.length > 0 || validation.warnings.length > 0) && (
         <div className="card rounded-xl p-5"
              style={{ borderColor: validation.errors.length > 0 ? "rgba(239,68,68,0.3)" : "rgba(245,158,11,0.3)" }}>
-          <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${validation.errors.length > 0 ? "bg-red-400" : "bg-amber-400"}`} />
-            FHIR Validation Issues
-            <span className="ml-auto text-xs text-slate-500">{validation.resource_count} resources</span>
-          </h3>
+          <div className="flex items-start justify-between gap-3 mb-3">
+            <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${validation.errors.length > 0 ? "bg-red-400" : "bg-amber-400"}`} />
+              FHIR R4 Validation + NHCX Compliance
+            </h3>
+            <span className="text-xs text-slate-500 flex-shrink-0">{validation.resource_count} resources</span>
+          </div>
+          {validation.errors.length > 0 && (
+            <p className="text-xs text-slate-500 mb-2">Structural errors (HL7 FHIR R4 JSON Schema):</p>
+          )}
           {validation.errors.map((e, i) => (
             <p key={i} className="text-xs text-red-300 rounded-lg px-3 py-2 mb-1.5"
                style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.15)" }}>
               {e}
             </p>
           ))}
+          {validation.warnings.length > 0 && (
+            <p className="text-xs text-slate-500 mb-2 mt-2">
+              NHCX compliance advisories (non-blocking — meta.profile, ABHA ID, LOINC, ICD-10):
+            </p>
+          )}
           {validation.warnings.slice(0, 5).map((w, i) => (
             <p key={i} className="text-xs text-amber-300 rounded-lg px-3 py-2 mb-1.5"
                style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.15)" }}>
@@ -378,7 +392,7 @@ export default function OutputPage() {
             </p>
           ))}
           {validation.warnings.length > 5 && (
-            <p className="text-xs text-slate-500 px-1">+{validation.warnings.length - 5} more warnings</p>
+            <p className="text-xs text-slate-500 px-1">+{validation.warnings.length - 5} more advisories</p>
           )}
         </div>
       )}
